@@ -7,7 +7,8 @@ WORKDIR /bot
 RUN apt-get update && apt-get install -y locales && \
     locale-gen ja_JP.UTF-8 && \
     ln -sf /usr/share/zoneinfo/Asia/Tokyo /etc/localtime && \
-    echo "Asia/Tokyo" > /etc/timezone
+    echo "Asia/Tokyo" > /etc/timezone && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
 ENV LANG ja_JP.UTF-8
 ENV LANGUAGE ja_JP:ja

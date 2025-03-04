@@ -30,8 +30,7 @@ if not TOKEN:
 # 特権インテント設定
 intents = discord.Intents.default()
 intents.message_content = True  # メッセージ内容取得
-intents.members = True          # サーバーメンバー情報取得（特権インテント）
-intents.presences = True        # ユーザーのプレゼンス情報取得（特権インテント）
+
 
 client = discord.Client(intents=intents)
 
