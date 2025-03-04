@@ -22,7 +22,7 @@ async def on_message(message):
     if message.content.startswith('$hello'):
         await message.channel.send('Hello!')
 
-    if message.content.startswith('$borrow'):
+    if message.content.startswith('/borrow'):
         try:
             amount = float(message.content.split()[1])
             if message.author.id not in debts:
@@ -30,9 +30,9 @@ async def on_message(message):
             debts[message.author.id] += amount
             await message.channel.send(f'あなたは {amount} 円を借りました。総借金: {debts[message.author.id]} 円')
         except (IndexError, ValueError):
-            await message.channel.send('使用法: $borrow [金額]')
+            await message.channel.send('使用法: /borrow [金額]')
 
-    if message.content.startswith('$interest'):
+    if message.content.startswith('/interest'):
         try:
             rate = float(message.content.split()[1])
             if message.author.id in debts:
@@ -41,9 +41,9 @@ async def on_message(message):
             else:
                 await message.channel.send('借金がありません。')
         except (IndexError, ValueError):
-            await message.channel.send('使用法: $interest [利率]')
+            await message.channel.send('使用法: /interest [利率]')
 
-    if message.content.startswith('$total'):
+    if message.content.startswith('/total'):
         if message.author.id in debts:
             await message.channel.send(f'総借金: {debts[message.author.id]} 円')
         else:
