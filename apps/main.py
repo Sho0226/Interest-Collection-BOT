@@ -111,6 +111,21 @@ async def interest(interaction: discord.Interaction, lender: discord.Member, rat
     else:
         await interaction.response.send_message("指定された貸し主からの借金がありません。")
 
+# スラッシュコマンド: /tips
+@client.tree.command(name="tips", description="利用可能なすべてのコマンドとその説明を表示します")
+async def tips(interaction: discord.Interaction):
+    embed = discord.Embed(
+        title="利用可能なコマンド一覧",
+        description="以下は、このボットで利用可能なコマンドです。",
+        color=discord.Color.blue()  # メッセージの色
+    )
+    embed.add_field(name="/borrow [金額] [貸し主]", value="指定した貸し主から金額を借りたこととして記録します。", inline=False)
+    embed.add_field(name="/interest [貸し主] [利率]", value="指定した貸し主に対する利率を設定します。", inline=False)
+    embed.add_field(name="/total", value="現在の総借金額、総利子額、総合計額を詳細に表示します。", inline=False)
+    embed.add_field(name="/tips", value="利用可能なすべてのコマンドとその説明を表示します。", inline=False)
+
+    await interaction.response.send_message(embed=embed)
+
 # スラッシュコマンド: /total
 @client.tree.command(name="total", description="合計利子と借金を表示します")
 async def total(interaction: discord.Interaction):
