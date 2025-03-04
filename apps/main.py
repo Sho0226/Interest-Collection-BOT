@@ -1,7 +1,7 @@
-import asyncio
+import discord
 import os
 import dotenv
-import discord
+import asyncio
 from fastapi import FastAPI
 import uvicorn
 
@@ -19,10 +19,15 @@ async def start_server():
     await server.serve()
 
 # Discordボット設定
-dotenv.load_dotenv(dotenv.find_dotenv())
+dotenv.load_dotenv()
 TOKEN = os.environ.get("TOKEN")
+
+# 特権インテント設定
 intents = discord.Intents.default()
-intents.message_content = True
+intents.message_content = True  # メッセージ内容取得
+intents.members = True          # サーバーメンバー情報取得（特権インテント）
+intents.presences = True        # ユーザーのプレゼンス情報取得（特権インテント）
+
 client = discord.Client(intents=intents)
 
 debts = {}
@@ -74,11 +79,8 @@ async def on_message(message):
 
 # メイン関数で非同期タスクとして実行
 async def main():
-    # FastAPIサーバーを非同期タスクとして起動
-    asyncio.create_task(start_server())
-    # Discordボットを起動
-    await client.start(TOKEN)
+    asyncio.create_task(start_server())  # FastAPIサーバー起動
+    await client.start(TOKEN)           # Discordボット起動
 
-# 実行エントリポイント
 if __name__ == "__main__":
     asyncio.run(main())
