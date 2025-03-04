@@ -32,44 +32,38 @@ class InterestBot(discord.Client):
     def __init__(self, intents):
         super().__init__(intents=intents)
         self.tree = discord.app_commands.CommandTree(self)
-        self.debts = {}  # 借金データ: {借り主ID: {貸し主ID: 金額}}
+        self.debts = {}  # 借金データ: {借り主ID: {貸し主ID: 現在の借金額}}
+        self.initial_debts = {}  # 初期借金データ: {借り主ID: {貸し主ID: 初期の借金額}}
         self.interests = {}  # 利子データ: {借り主ID: {貸し主ID: 利子}}
+        self.interest_rates = {}  # 利率データ: {借り主ID: {貸し主ID: 利率}}
 
     async def setup_hook(self):
         await self.tree.sync()
 
 client = InterestBot(intents=intents)
 
-# スラッシュコマンド: /tips
-@client.tree.command(name="tips", description="利用可能なすべてのコマンドとその説明を表示します")
-async def tips(interaction: discord.Interaction):
-    embed = discord.Embed(
-        title="利用可能なコマンド一覧",
-        description="以下は、このボットで利用可能なコマンドです。",
-        color=discord.Color.blue()  # メッセージの色
-    )
-    embed.add_field(name="/hello", value="ボットが挨拶します。", inline=False)
-    embed.add_field(name="/borrow [金額] [貸し主]", value="指定した貸し主から金額を借りたこととして記録します。", inline=False)
-    embed.add_field(name="/interest [利率] [貸し主]", value="指定した貸し主に対する毎月の利子を計算します。", inline=False)
-    embed.add_field(name="/total", value="現在の総借金額、総利子額、総合計額を表示します。", inline=False)
-    embed.add_field(name="/return [金額] [貸し主]", value="指定した貸し主に返済した金額を記録します。", inline=False)
-    embed.add_field(name="/tips", value="利用可能なすべてのコマンドとその説明を表示します。", inline=False)
-
-    await interaction.response.send_message(embed=embed)
-
-
 # スラッシュコマンド: /borrow
 @client.tree.command(name="borrow", description="誰からいくら借りたかを記録します")
 async def borrow(interaction: discord.Interaction, amount: float, lender: discord.Member):
+    if interaction.user.id == lender.id:
+        await interaction.response.send_message("エラー: 自分自身から借りることはできません。", ephemeral=True)
+        return
+
     borrower_id = interaction.user.id
     lender_id = lender.id
 
+    # 借金データの更新
     if borrower_id not in client.debts:
         client.debts[borrower_id] = {}
     if lender_id not in client.debts[borrower_id]:
         client.debts[borrower_id][lender_id] = 0
-
     client.debts[borrower_id][lender_id] += amount
+
+    # 初期借金データの設定（初回のみ）
+    if borrower_id not in client.initial_debts:
+        client.initial_debts[borrower_id] = {}
+    if lender_id not in client.initial_debts[borrower_id]:
+        client.initial_debts[borrower_id][lender_id] = amount
 
     embed = discord.Embed(
         title="借金記録",
@@ -79,27 +73,38 @@ async def borrow(interaction: discord.Interaction, amount: float, lender: discor
     await interaction.response.send_message(embed=embed)
 
 # スラッシュコマンド: /interest
-@client.tree.command(name="interest", description="利子と送金額を計算します")
-async def interest(interaction: discord.Interaction, rate: float, lender: discord.Member):
+@client.tree.command(name="interest", description="誰からの利子金額を設定します")
+async def interest(interaction: discord.Interaction, lender: discord.Member, rate: float):
+    if interaction.user.id == lender.id:
+        await interaction.response.send_message("エラー: 自分自身に利子を設定することはできません。", ephemeral=True)
+        return
+
     borrower_id = interaction.user.id
     lender_id = lender.id
 
     if rate < 0:
-        await interaction.response.send_message("利率は正の値で指定してください。")
+        await interaction.response.send_message("エラー: 利率は正の値で指定してください。", ephemeral=True)
         return
 
     if borrower_id in client.debts and lender_id in client.debts[borrower_id]:
-        debt_amount = client.debts[borrower_id][lender_id]
-        interest_amount = debt_amount * (rate / 100)
+        # 利率データの設定
+        if borrower_id not in client.interest_rates:
+            client.interest_rates[borrower_id] = {}
+        client.interest_rates[borrower_id][lender_id] = rate
+
+        # 初期借金額を基準に利子計算
+        initial_debt_amount = client.initial_debts[borrower_id][lender_id]
+        interest_amount = initial_debt_amount * (rate / 100)
 
         if borrower_id not in client.interests:
             client.interests[borrower_id] = {}
         client.interests[borrower_id][lender_id] = interest_amount
 
         embed = discord.Embed(
-            title="利子計算",
-            description=f"{interaction.user.name} の毎月の利子: {interest_amount} 円\n"
-                        f"元の借金額: {debt_amount} 円",
+            title="利子設定",
+            description=f"{interaction.user.name} の {lender.name} に対する利率を {rate}% に設定しました。\n"
+                        f"元の借金額（固定）: {initial_debt_amount} 円\n"
+                        f"毎月の利子額（固定）: {interest_amount} 円",
             color=discord.Color.blue()
         )
         await interaction.response.send_message(embed=embed)
@@ -118,37 +123,29 @@ async def total(interaction: discord.Interaction):
 
         embed = discord.Embed(
             title="総合計",
-            description=f"総借金額: {total_debt} 円\n"
-                        f"総利子額: {total_interest} 円\n"
-                        f"総合計額: {total_amount} 円",
+            description=f"総借金額（現在）: {total_debt} 円\n"
+                        f"総利子額（固定）: {total_interest} 円\n"
+                        f"総合計額（現在 + 利子）: {total_amount} 円",
             color=discord.Color.purple()
         )
+
+        # 詳細情報を追加
+        for lender_id, debt in client.debts[borrower_id].items():
+            interest_amount = client.interests.get(borrower_id, {}).get(lender_id, 0)
+            lender_user = await client.fetch_user(lender_id)
+            embed.add_field(
+                name=f"{lender_user.name} からの詳細",
+                value=f"現在の借金額: {debt} 円\n"
+                      f"毎月の利子額（固定）: {interest_amount} 円\n"
+                      f"合計（現在 + 利子）: {debt + interest_amount} 円",
+                inline=False
+            )
+
         await interaction.response.send_message(embed=embed)
     else:
         await interaction.response.send_message("現在、記録された借金がありません。")
 
-# スラッシュコマンド: /return
-@client.tree.command(name="return", description="返済額を記録します")
-async def return_debt(interaction: discord.Interaction, amount: float, lender: discord.Member):
-    borrower_id = interaction.user.id
-    lender_id = lender.id
-
-    if borrower_id in client.debts and lender_id in client.debts[borrower_id]:
-        client.debts[borrower_id][lender_id] -= amount
-
-        if client.debts[borrower_id][lender_id] <= 0:
-            del client.debts[borrower_id][lender_id]
-
-        embed = discord.Embed(
-            title="返済記録",
-            description=f"{interaction.user.name} が {lender.name} に {amount} 円返済しました。",
-            color=discord.Color.orange()
-        )
-        await interaction.response.send_message(embed=embed)
-    else:
-        await interaction.response.send_message("指定された貸し主への借金がありません。")
-
-# 月初めに利子更新とアナウンス
+# 月初めに利率更新とアナウンス
 async def monthly_update():
     while True:
         now = datetime.now()
@@ -159,18 +156,20 @@ async def monthly_update():
 
         for borrower, lenders in client.debts.items():
             for lender, debt in lenders.items():
-                interest_amount = client.interests.get(borrower, {}).get(lender, 0)
-                new_total_debt = debt + interest_amount
+                # 初期値で固定された毎月の利子額を再通知
+                initial_debt_amount = client.initial_debts[borrower][lender]
+                current_rate = client.interest_rates.get(borrower, {}).get(lender, 0)
+                interest_amount = initial_debt_amount * (current_rate / 100)
 
                 user_borrower = await client.fetch_user(borrower)
                 user_lender = await client.fetch_user(lender)
 
                 embed = discord.Embed(
                     title="月初め更新",
-                    description=f"{user_borrower.name} の新しい借金額:\n"
-                                f"元の借金額: {debt} 円\n"
-                                f"加算された利子額: {interest_amount} 円\n"
-                                f"合計借金額: {new_total_debt} 円",
+                    description=f"{user_borrower.name} の新しい借金情報:\n"
+                                f"元の借金額（固定）: {initial_debt_amount} 円\n"
+                                f"現在の利率（固定）: {current_rate}%\n"
+                                f"毎月の利子額（固定）: {interest_amount} 円",
                     color=discord.Color.red()
                 )
 
