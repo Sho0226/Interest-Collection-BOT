@@ -40,6 +40,24 @@ class InterestBot(discord.Client):
 
 client = InterestBot(intents=intents)
 
+# スラッシュコマンド: /tips
+@client.tree.command(name="tips", description="利用可能なすべてのコマンドとその説明を表示します")
+async def tips(interaction: discord.Interaction):
+    embed = discord.Embed(
+        title="利用可能なコマンド一覧",
+        description="以下は、このボットで利用可能なコマンドです。",
+        color=discord.Color.blue()  # メッセージの色
+    )
+    embed.add_field(name="/hello", value="ボットが挨拶します。", inline=False)
+    embed.add_field(name="/borrow [金額] [貸し主]", value="指定した貸し主から金額を借りたこととして記録します。", inline=False)
+    embed.add_field(name="/interest [利率] [貸し主]", value="指定した貸し主に対する毎月の利子を計算します。", inline=False)
+    embed.add_field(name="/total", value="現在の総借金額、総利子額、総合計額を表示します。", inline=False)
+    embed.add_field(name="/return [金額] [貸し主]", value="指定した貸し主に返済した金額を記録します。", inline=False)
+    embed.add_field(name="/tips", value="利用可能なすべてのコマンドとその説明を表示します。", inline=False)
+
+    await interaction.response.send_message(embed=embed)
+
+
 # スラッシュコマンド: /borrow
 @client.tree.command(name="borrow", description="誰からいくら借りたかを記録します")
 async def borrow(interaction: discord.Interaction, amount: float, lender: discord.Member):
