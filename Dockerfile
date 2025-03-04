@@ -3,7 +3,7 @@ FROM python:3.11
 # 作業ディレクトリを設定
 WORKDIR /bot
 
-# requirements.txtをコンテナにコピーして依存関係をインストール
+# .dockerignore を活用して不要なファイルを除外
 COPY requirements.txt /bot/
 RUN pip install --no-cache-dir -r requirements.txt
 
