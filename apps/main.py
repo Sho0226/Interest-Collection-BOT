@@ -152,6 +152,32 @@ async def interest(interaction: discord.Interaction, lender: discord.Member, rat
     else:
         await interaction.response.send_message("指定された貸し主からの借金がありません。")
 
+# スラッシュコマンド: /return
+@client.tree.command(name="return", description="返済額を記録します")
+async def return_debt(interaction: discord.Interaction, amount: float, lender: discord.Member):
+    if interaction.user.id == lender.id:
+        await interaction.response.send_message("エラー: 自分自身に返済することはできません。", ephemeral=True)
+        return
+
+    borrower_id = interaction.user.id
+    lender_id = lender.id
+
+    if borrower_id in client.debts and lender_id in client.debts[borrower_id]:
+        client.debts[borrower_id][lender_id] -= amount
+
+        if client.debts[borrower_id][lender_id] <= 0:
+            del client.debts[borrower_id][lender_id]
+
+        embed = discord.Embed(
+            title="返済記録",
+            description=f"{interaction.user.name} が {lender.name} に {amount} 円返済しました。",
+            color=discord.Color.orange()
+        )
+        await interaction.response.send_message(embed=embed)
+    else:
+        await interaction.response.send_message("指定された貸し主への借金がありません。")
+
+
 # スラッシュコマンド: /tips
 @client.tree.command(name="tips", description="利用可能なすべてのコマンドとその説明を表示します")
 async def tips(interaction: discord.Interaction):
@@ -162,6 +188,7 @@ async def tips(interaction: discord.Interaction):
     )
     embed.add_field(name="/borrow [金額] [貸し主]", value="指定した貸し主から金額を借りたこととして記録します。", inline=False)
     embed.add_field(name="/interest [貸し主] [利率]", value="指定した貸し主に対する利率を設定します。", inline=False)
+    embed.add_field(name="/return [金額] [貸し主]", value="指定した貸し主に返済した金額を記録します。", inline=False)
     embed.add_field(name="/total", value="現在の総借金額、総利子額、総合計額を詳細に表示します。", inline=False)
     embed.add_field(name="/tips", value="利用可能なすべてのコマンドとその説明を表示します。", inline=False)
 
