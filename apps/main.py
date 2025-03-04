@@ -36,6 +36,8 @@ class InterestBot(discord.Client):
         self.initial_debts = {}  # 初期借金データ: {借り主ID: {貸し主ID: 初期の借金額}}
         self.interests = {}  # 利子データ: {借り主ID: {貸し主ID: 利子}}
         self.interest_rates = {}  # 利率データ: {借り主ID: {貸し主ID: 利率}}
+        self.borrow_timestamps = {}  # 借金発生日時: {借り主ID: {貸し主ID: 借金発生日}}
+
 
     async def setup_hook(self):
         await self.tree.sync()
@@ -155,7 +157,17 @@ async def total(interaction: discord.Interaction):
 
     if borrower_id in client.debts:
         total_debt = sum(client.debts[borrower_id].values())
-        total_interest = sum(client.interests.get(borrower_id, {}).values())
+        total_interest = 0  # 初期化
+
+        for lender_id, debt in client.debts[borrower_id].items():
+            interest_amount = client.interests.get(borrower_id, {}).get(lender_id, 0)
+            borrow_date = client.borrow_timestamps.get(borrower_id, {}).get(lender_id)
+
+            if borrow_date:
+                time_difference = datetime.now() - borrow_date
+                if time_difference.days >= 30:
+                    total_interest += interest_amount  # 初月以降のみ利子を加算
+
         total_amount = total_debt + total_interest
 
         embed = discord.Embed(
@@ -168,6 +180,12 @@ async def total(interaction: discord.Interaction):
 
         for lender_id, debt in client.debts[borrower_id].items():
             interest_amount = client.interests.get(borrower_id, {}).get(lender_id, 0)
+            borrow_date = client.borrow_timestamps.get(borrower_id, {}).get(lender_id)
+            time_difference = datetime.now() - borrow_date if borrow_date else None
+
+            if time_difference and time_difference.days < 30:
+                interest_amount = 0  # 初月は利子を無視
+
             lender_user = await client.fetch_user(lender_id)
             embed.add_field(
                 name=f"{lender_user.name} からの詳細",
