@@ -65,12 +65,53 @@ async def borrow(interaction: discord.Interaction, amount: float, lender: discor
     if lender_id not in client.initial_debts[borrower_id]:
         client.initial_debts[borrower_id][lender_id] = amount
 
+    # 借りた月は利子額を0円に設定
+    if borrower_id not in client.interests:
+        client.interests[borrower_id] = {}
+    client.interests[borrower_id][lender_id] = 0  # 利子額を0円に設定
+
     embed = discord.Embed(
         title="借金記録",
-        description=f"{interaction.user.name} が {lender.name} から {amount} 円借りました。",
+        description=f"{interaction.user.name} が {lender.name} から {amount} 円借りました。\n"
+                    f"※この月の利子額は 0 円です。",
         color=discord.Color.green()
     )
     await interaction.response.send_message(embed=embed)
+
+# 月初めに利率更新とアナウンス
+async def monthly_update():
+    while True:
+        now = datetime.now()
+        next_month_start = (now.replace(day=1) + timedelta(days=32)).replace(day=1)
+        wait_time = (next_month_start - now).total_seconds()
+
+        await asyncio.sleep(wait_time)
+
+        for borrower, lenders in client.debts.items():
+            for lender, debt in lenders.items():
+                # 初期値で固定された毎月の利子額を再通知
+                initial_debt_amount = client.initial_debts[borrower][lender]
+                current_rate = client.interest_rates.get(borrower, {}).get(lender, 0)
+
+                # 利子額を初期借金額と利率で計算（借りた月はスキップ済み）
+                interest_amount = initial_debt_amount * (current_rate / 100)
+                client.interests[borrower][lender] = interest_amount
+
+                user_borrower = await client.fetch_user(borrower)
+                user_lender = await client.fetch_user(lender)
+
+                embed = discord.Embed(
+                    title="月初め更新",
+                    description=f"{user_borrower.name} の新しい借金情報:\n"
+                                f"元の借金額（固定）: {initial_debt_amount} 円\n"
+                                f"現在の利率（固定）: {current_rate}%\n"
+                                f"毎月の利子額: {interest_amount} 円",
+                    color=discord.Color.red()
+                )
+
+                # アナウンス（ここではDM送信）
+                await user_borrower.send(embed=embed)
+
 
 # スラッシュコマンド: /interest
 @client.tree.command(name="interest", description="誰からの利子金額を設定します")
