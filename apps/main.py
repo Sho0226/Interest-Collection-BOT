@@ -42,7 +42,6 @@ class InterestBot(discord.Client):
 
 client = InterestBot(intents=intents)
 
-# スラッシュコマンド: /borrow
 @client.tree.command(name="borrow", description="誰からいくら借りたかを記録します")
 async def borrow(interaction: discord.Interaction, amount: float, lender: discord.Member):
     if interaction.user.id == lender.id:
@@ -52,20 +51,17 @@ async def borrow(interaction: discord.Interaction, amount: float, lender: discor
     borrower_id = interaction.user.id
     lender_id = lender.id
 
-    # 借金データの更新
     if borrower_id not in client.debts:
         client.debts[borrower_id] = {}
     if lender_id not in client.debts[borrower_id]:
         client.debts[borrower_id][lender_id] = 0
     client.debts[borrower_id][lender_id] += amount
 
-    # 初期借金データの設定（初回のみ）
     if borrower_id not in client.initial_debts:
         client.initial_debts[borrower_id] = {}
     if lender_id not in client.initial_debts[borrower_id]:
         client.initial_debts[borrower_id][lender_id] = amount
 
-    # 借りた月は利子額を0円に設定
     if borrower_id not in client.interests:
         client.interests[borrower_id] = {}
     client.interests[borrower_id][lender_id] = 0  # 利子額を0円に設定
@@ -78,42 +74,6 @@ async def borrow(interaction: discord.Interaction, amount: float, lender: discor
     )
     await interaction.response.send_message(embed=embed)
 
-# 月初めに利率更新とアナウンス
-async def monthly_update():
-    while True:
-        now = datetime.now()
-        next_month_start = (now.replace(day=1) + timedelta(days=32)).replace(day=1)
-        wait_time = (next_month_start - now).total_seconds()
-
-        await asyncio.sleep(wait_time)
-
-        for borrower, lenders in client.debts.items():
-            for lender, debt in lenders.items():
-                # 初期値で固定された毎月の利子額を再通知
-                initial_debt_amount = client.initial_debts[borrower][lender]
-                current_rate = client.interest_rates.get(borrower, {}).get(lender, 0)
-
-                # 利子額を初期借金額と利率で計算（借りた月はスキップ済み）
-                interest_amount = initial_debt_amount * (current_rate / 100)
-                client.interests[borrower][lender] = interest_amount
-
-                user_borrower = await client.fetch_user(borrower)
-                user_lender = await client.fetch_user(lender)
-
-                embed = discord.Embed(
-                    title="月初め更新",
-                    description=f"{user_borrower.name} の新しい借金情報:\n"
-                                f"元の借金額（固定）: {initial_debt_amount} 円\n"
-                                f"現在の利率（固定）: {current_rate}%\n"
-                                f"毎月の利子額: {interest_amount} 円",
-                    color=discord.Color.red()
-                )
-
-                # アナウンス（ここではDM送信）
-                await user_borrower.send(embed=embed)
-
-
-# スラッシュコマンド: /interest
 @client.tree.command(name="interest", description="誰からの利子金額を設定します")
 async def interest(interaction: discord.Interaction, lender: discord.Member, rate: float):
     if interaction.user.id == lender.id:
@@ -128,12 +88,10 @@ async def interest(interaction: discord.Interaction, lender: discord.Member, rat
         return
 
     if borrower_id in client.debts and lender_id in client.debts[borrower_id]:
-        # 利率データの設定
         if borrower_id not in client.interest_rates:
             client.interest_rates[borrower_id] = {}
         client.interest_rates[borrower_id][lender_id] = rate
 
-        # 初期借金額を基準に利子計算
         initial_debt_amount = client.initial_debts[borrower_id][lender_id]
         interest_amount = initial_debt_amount * (rate / 100)
 
@@ -152,7 +110,6 @@ async def interest(interaction: discord.Interaction, lender: discord.Member, rat
     else:
         await interaction.response.send_message("指定された貸し主からの借金がありません。")
 
-# スラッシュコマンド: /return
 @client.tree.command(name="return", description="返済額を記録します")
 async def return_debt(interaction: discord.Interaction, amount: float, lender: discord.Member):
     if interaction.user.id == lender.id:
@@ -177,14 +134,12 @@ async def return_debt(interaction: discord.Interaction, amount: float, lender: d
     else:
         await interaction.response.send_message("指定された貸し主への借金がありません。")
 
-
-# スラッシュコマンド: /tips
 @client.tree.command(name="tips", description="利用可能なすべてのコマンドとその説明を表示します")
 async def tips(interaction: discord.Interaction):
     embed = discord.Embed(
         title="利用可能なコマンド一覧",
         description="以下は、このボットで利用可能なコマンドです。",
-        color=discord.Color.blue()  # メッセージの色
+        color=discord.Color.blue()
     )
     embed.add_field(name="/borrow [金額] [貸し主]", value="指定した貸し主から金額を借りたこととして記録します。", inline=False)
     embed.add_field(name="/interest [貸し主] [利率]", value="指定した貸し主に対する利率を設定します。", inline=False)
@@ -194,7 +149,6 @@ async def tips(interaction: discord.Interaction):
 
     await interaction.response.send_message(embed=embed)
 
-# スラッシュコマンド: /total
 @client.tree.command(name="total", description="合計利子と借金を表示します")
 async def total(interaction: discord.Interaction):
     borrower_id = interaction.user.id
@@ -212,7 +166,6 @@ async def total(interaction: discord.Interaction):
             color=discord.Color.purple()
         )
 
-        # 詳細情報を追加
         for lender_id, debt in client.debts[borrower_id].items():
             interest_amount = client.interests.get(borrower_id, {}).get(lender_id, 0)
             lender_user = await client.fetch_user(lender_id)
@@ -228,7 +181,6 @@ async def total(interaction: discord.Interaction):
     else:
         await interaction.response.send_message("現在、記録された借金がありません。")
 
-# 月初めに利率更新とアナウンス
 async def monthly_update():
     while True:
         now = datetime.now()
@@ -239,7 +191,6 @@ async def monthly_update():
 
         for borrower, lenders in client.debts.items():
             for lender, debt in lenders.items():
-                # 初期値で固定された毎月の利子額を再通知
                 initial_debt_amount = client.initial_debts[borrower][lender]
                 current_rate = client.interest_rates.get(borrower, {}).get(lender, 0)
                 interest_amount = initial_debt_amount * (current_rate / 100)
@@ -256,14 +207,12 @@ async def monthly_update():
                     color=discord.Color.red()
                 )
 
-                # アナウンス（ここではDM送信）
                 await user_borrower.send(embed=embed)
 
-# メイン関数で非同期タスクとして実行
 async def main():
-    asyncio.create_task(start_server())  # FastAPIサーバー起動
-    asyncio.create_task(monthly_update())  # 月初め更新タスク起動
-    await client.start(TOKEN)           # Discordボット起動
+    asyncio.create_task(start_server())
+    asyncio.create_task(monthly_update())
+    await client.start(TOKEN)
 
 if __name__ == "__main__":
     asyncio.run(main())
